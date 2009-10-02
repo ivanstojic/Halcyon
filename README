@@ -1,0 +1,46 @@
+ABOUT
+
+This is Halcyon. A simple, no nonsense PHP microframework that aims to
+help you kickstart your web development.
+
+There are several goals to this project:
+
+1) Provide absolutely top-notch documentation and a codebase small
+enough for *anyone* to understand.
+
+2) Enable simple, easy and fast prototyping of web applications in PHP
+
+3) Integrate softly with ORM libraries for automatic form generation.
+
+
+
+DEPENDENCIES
+
+The framework currently has only one absolutely required dependency:
+the RunKit PECL extension.
+
+
+
+HANDLERS
+
+Requests (both GET and POST) are handled by methods implemented in
+separate source files, which must be implemented within a class called
+Handler.
+
+See examples, or the app/ directory in the default distribution.
+
+
+
+URL-TO-FILE DISPATCHING
+
+Here's an example of how Halcyon attempts to match URLs into
+class/method/parameters:
+
+Given an URL http://somewhere/halcyondir/foo/bar/baz/quux here is the
+list of attempted methods and parameters 
+
+
+
+EXAMPLES
+
+Simple
