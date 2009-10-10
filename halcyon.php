@@ -61,6 +61,12 @@ class Halcyon {
 
     // Clean up variables - URL
     $url = $_SERVER["REDIRECT_URL"];
+
+    if (substr($url, -1) == "/") {
+      $url = substr($url, 0, -1);
+    }
+
+    
     
     $scriptcount = count(explode("/", $_SERVER["SCRIPT_NAME"]));
     
@@ -80,8 +86,9 @@ class Halcyon {
 
     if (!$this->_controllerLoaded) {
       echo "Error 404 :-(";
+      
     } else {
-      $this->_handler = new Handler();
+      $this->_handler = new $this->_controllerClassname();
 
       $this->_controllerReturnValue = call_user_func_array(array($this->_handler, $this->_calleeMethod), $this->_calleeParams);
 
@@ -134,14 +141,16 @@ class Halcyon {
 
     $last = "";
     $loaded = false;
-    
+
+    //echo "|_. Controller filename |_. Method name |_. Parameters |<br>\n";
     foreach ($candidates as $c) {
+      //echo "| ", Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php", " | ", $c[1], " | ", join(", ", $c[2]), " |<br>\n";
+      
       if ($last != $c[0]) {
 	$last = $c[0];
 
 	if (is_readable(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php")) {
-	  runkit_import(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php", RUNKIT_IMPORT_CLASSES);
-
+	  $classname = HalcyonClassMunger::import(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php");
 	  $loaded = true;
 	  
 	} else {
@@ -149,19 +158,21 @@ class Halcyon {
 	}
       }
 
-      if ($loaded && $this->validateController($c[1], $c[2])) {
+      if ($loaded && $this->validateController($classname, $c[1], $c[2])) {
 	$this->_controllerLoaded = true;
+
+	$this->_controllerClassname = $classname;
 	$this->_controllerFilename = $last;
 	
-	return;
+	//	return;
       }
     }
   }
 
 
-  private function validateController($method, $params) {
-    if (is_callable(array("Handler", $method))) {
-      $mref = new ReflectionMethod("Handler", $method);
+  private function validateController($classname, $method, $params) {
+    if (is_callable(array($classname, $method))) {
+      $mref = new ReflectionMethod($classname, $method);
       $pref = $mref->getParameters();
 
       if (count($params) >= $mref->getNumberOfRequiredParameters()) {
@@ -260,6 +271,25 @@ class Halcyon {
     $results[] = array("index", $rest);
 
     return $results;
+  }
+}
+
+
+class HalcyonClassMunger {
+  public static function import($filename) {
+    $classname = "Loaded_" . md5(uniqid("", true));
+
+    self::wrapAndEval($classname, $filename);
+    
+    return $classname;
+  }
+
+  private static function wrapAndEval($classname, $filename) {
+    $content = file_get_contents($filename);
+
+    $content = "class $classname {" . $content . "}";
+
+    eval($content);
   }
 }
 
