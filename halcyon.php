@@ -1,4 +1,6 @@
 <?php
+error_reporting(E_ALL);
+
 class Halcyon {
   const CONTROLLER_DIR = "app";
   const TEMPLATE_DIR = "views";
@@ -13,8 +15,9 @@ class Halcyon {
 
 
   public $_responseType = Halcyon::RESPONSE_TEMPLATED;
-  public $_templateLayout = "layout.php";
+  public $_templateLayout = "layout";
   public $_templateBody = null;
+  public $_responseContentType = "text/html; charset=utf-8";
   
   
   public static function run() {
@@ -66,8 +69,6 @@ class Halcyon {
       $url = substr($url, 0, -1);
     }
 
-    
-    
     $scriptcount = count(explode("/", $_SERVER["SCRIPT_NAME"]));
     
     $explodedurl = explode("/", $url);
@@ -82,12 +83,14 @@ class Halcyon {
   // General handler function
   public function handleRequest() {
     $this->loadController();
-    $this->initOutputDecoration();
 
     if (!$this->_controllerLoaded) {
+      header("HTTP/1.0 404 Not Found");
+
       echo "Error 404 :-(";
       
     } else {
+      $this->initOutputDecoration();
       $this->_handler = new $this->_controllerClassname();
 
       $this->_controllerReturnValue = call_user_func_array(array($this->_handler, $this->_calleeMethod), $this->_calleeParams);
@@ -105,9 +108,11 @@ class Halcyon {
   // Decorate the output of the controller as per controller's request...
   private function decorateOutput() {
     if ($this->_responseType == Halcyon::RESPONSE_JSON) {
+      header("Content-Type: application/json");
       echo json_encode($this->_controllerReturnValue);
       
     } elseif ($this->_responseType == Halcyon::RESPONSE_TEMPLATED) {
+      header("Content-Type: " . $this->_responseContentType);
       // We're throwing away the return value...
 
       if ($this->_templateBody !== null) {
@@ -122,7 +127,7 @@ class Halcyon {
 	  $values = (array) $this->_handler;
 	  $values["___body___"] = $body;
 	  
-	  $layout = ___captureFileOutput($values, Halcyon::TEMPLATE_DIR . "/" . $this->_templateLayout);
+	  $layout = ___captureFileOutput($values, Halcyon::TEMPLATE_DIR . "/" . $this->_templateLayout . ".php");
 
 	  echo $layout;
 	  
@@ -164,7 +169,7 @@ class Halcyon {
 	$this->_controllerClassname = $classname;
 	$this->_controllerFilename = $last;
 	
-	//	return;
+	return;
       }
     }
   }
@@ -178,7 +183,7 @@ class Halcyon {
       if (count($params) >= $mref->getNumberOfRequiredParameters()) {
 	if (count($params) >= $mref->getNumberOfParameters()) {
 	  // The list of parameters has more than enough parameters to satisfy method.
-	  if ($pref[count($pref)-1]->isArray()) {
+	  if (count($pref) > 0 && $pref[count($pref)-1]->isArray()) {
 	    // We can wrap the rest-params in an array...
 	    $count = count($params) - $mref->getNumberOfParameters() + 1;
 	    $rest = array_splice($params, $mref->getNumberOfParameters() - 1);
@@ -295,12 +300,17 @@ class HalcyonClassMunger {
 
 
 function ___captureFileOutput($___object, $___filename) {
-  ob_start();
+  if (is_readable($___filename)) {
+    ob_start();
 
-  extract((array) $___object, EXTR_SKIP);
-  include($___filename);
+    extract((array) $___object, EXTR_SKIP);
+    include($___filename);
 
-  return ob_get_clean();
+    return ob_get_clean();
+    
+  } else {
+    die("Cannot read template file $___filename!\n");
+  }
 }
 
 
