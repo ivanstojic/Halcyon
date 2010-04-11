@@ -2,10 +2,17 @@
 error_reporting(E_ALL);
 
 class Halcyon {
-  const CONTROLLER_DIR = "app";
-  const TEMPLATE_DIR = "views";
+  const DEBUG = false;
 
+  public $_templateDirectory = "views";
+  const CONTROLLER_DIR = "app";
+
+  //
   // Don't touch anything beyond this line :-)
+  //
+  // Really.
+  //
+  
   const RESPONSE_JSON = 1;
   const RESPONSE_TEMPLATED = 2;
 
@@ -21,7 +28,9 @@ class Halcyon {
   
   
   public static function run() {
-    return self::getInstance();
+    $instance = self::getInstance();
+    
+    return $instance;
   }
 
 
@@ -49,17 +58,33 @@ class Halcyon {
   }
 
 
-  public static function setLayout($layout) {
-    self::getInstance()->_templateLayout = $layout . ".php";
+  public static function setTemplateDirectory($base) {
+    self::getInstance()->_templateDirectory = $base;
   }
 
+  public static function setLayout($layout) {
+    self::getInstance()->_templateLayout = $layout;
+  }
 
   public static function setBody($body) {
     self::getInstance()->_templateBody = $body;
   }
 
+
+  public static function requireGroup($group) {
+    if (isset($_SESSION["user"]) &&
+	$_SESSION["user"]->group == $group) {
+
+      return true;
+    }
+
+    header("Location: /session/login/");
+    exit;
+  }
+
   
   public function __construct() {
+    session_start();
     $this->_query = $_SERVER["QUERY_STRING"];
 
     // Clean up variables - URL
@@ -90,18 +115,12 @@ class Halcyon {
       echo "Error 404 :-(";
       
     } else {
-      $this->initOutputDecoration();
       $this->_handler = new $this->_controllerClassname();
 
       $this->_controllerReturnValue = call_user_func_array(array($this->_handler, $this->_calleeMethod), $this->_calleeParams);
 
       $this->decorateOutput();
     }
-  }
-
-
-  private function initOutputDecoration() {
-    $this->_templateBody = $this->_calleeMethod;
   }
 
 
@@ -115,19 +134,28 @@ class Halcyon {
       header("Content-Type: " . $this->_responseContentType);
       // We're throwing away the return value...
 
-      if ($this->_templateBody !== null) {
-	$this->_templateBody = ucfirst($this->_templateBody);
+      $templatefilename = null;
       
-	$bodytpl = Halcyon::TEMPLATE_DIR . "/" .
+      if ($this->_templateBody === null) {
+	$this->_templateBody = ucfirst($this->_calleeMethod);
+	
+	$templatefilename = $this->_templateDirectory . "/" .
 	  $this->_controllerFilename . $this->_templateBody . ".php";
 
-	$body = ___captureFileOutput($this->_handler, $bodytpl);
+      } else {
+	$templatefilename = $this->_templateDirectory . "/" .
+	  $this->_templateBody . ".php";
+      }
+
+      if ($templatefilename !== null) {
+	$body = ___captureFileOutput($this->_handler, $templatefilename);
+
 
 	if ($this->_templateLayout !== null) {
 	  $values = (array) $this->_handler;
 	  $values["___body___"] = $body;
-	  
-	  $layout = ___captureFileOutput($values, Halcyon::TEMPLATE_DIR . "/" . $this->_templateLayout . ".php");
+
+	  $layout = ___captureFileOutput($values, $this->_templateDirectory . "/" . $this->_templateLayout . ".php");
 
 	  echo $layout;
 	  
@@ -147,15 +175,19 @@ class Halcyon {
     $last = "";
     $loaded = false;
 
-    //echo "|_. Controller filename |_. Method name |_. Parameters |<br>\n";
+    ___log("|_. Controller filename |_. Method name |_. Parameters |<br>\n");
     foreach ($candidates as $c) {
-      //echo "| ", Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php", " | ", $c[1], " | ", join(", ", $c[2]), " |<br>\n";
+      ___log("| " . Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php" . " | " . $c[1] . " | " . join(", ", $c[2]) . " |<br>\n");
       
       if ($last != $c[0]) {
 	$last = $c[0];
 
 	if (is_readable(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php")) {
 	  $classname = HalcyonClassMunger::import(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".php");
+	  $loaded = true;
+
+	} elseif (is_readable(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".yml")) {
+	  $classname = HalcyonYamlMunger::import(Halcyon::CONTROLLER_DIR . "/" . $c[0] . ".yml");
 	  $loaded = true;
 	  
 	} else {
@@ -285,19 +317,36 @@ class HalcyonClassMunger {
     $classname = "Loaded_" . md5(uniqid("", true));
 
     self::wrapAndEval($classname, $filename);
-    
+
+    return $classname;
+  }
+
+
+  private static function wrapAndEval($classname, $filename) {
+    $code = file_get_contents($filename);
+
+    $template = "class $classname {" . $code . "}";
+
+    eval($template);
+  }
+}
+
+
+class HalcyonYamlMunger {
+  public static function import($filename) {
+    $classname = "Loaded_" . md5(uniqid("", true));
+
+    self::wrapAndEval($classname, $filename);
+
     return $classname;
   }
 
   private static function wrapAndEval($classname, $filename) {
-    $content = file_get_contents($filename);
+    $template = "class $classname extends HalcyonSnowflake { public \$specifier = '$filename'; }";
 
-    $content = "class $classname {" . $content . "}";
-
-    eval($content);
+    eval($template);
   }
 }
-
 
 function ___captureFileOutput($___object, $___filename) {
   if (is_readable($___filename)) {
@@ -314,3 +363,98 @@ function ___captureFileOutput($___object, $___filename) {
 }
 
 
+function ___log($a) {
+  if (Halcyon::DEBUG) {
+    echo $a;
+  }
+}
+
+
+function is_assoc(array $thing) {
+  return array_values($thing) === $thing;
+}
+
+
+function evalFunction($body) {
+  $name = "___function_" . md5($body);
+
+  eval("function $name (\$record) { $body }");
+  
+  return $name;
+}
+
+
+
+class HalcyonSnowflake {
+  //Halcyon::jsonResponse();
+  //Halcyon::suppressLayout();
+  //Halcyon::setLayout("layout2");
+  //Halcyon::setBody("layout");
+
+  private $defaultSpecifier = array(
+				    "templating" => array(
+							  "base" => "views/snowflakes",
+							  "layout" => "layout"
+							  )
+  );
+  
+  public $specifier = null;
+
+  public function __construct() {
+    $this->specifier = Spyc::YAMLLoad($this->specifier);
+    $this->specifier = array_merge($this->defaultSpecifier, $this->specifier);
+
+    $this->__fixupSpecifier();
+
+    Halcyon::setTemplateDirectory($this->specifier["templating"]["base"]);
+    Halcyon::setLayout($this->specifier["templating"]["layout"]);
+  }
+
+  private function __fixupSpecifier() {
+    foreach ($this->specifier['fields'] as $key => &$value) {
+      if (!isset($value['type'])) {
+	$value['type'] = 'readonly';
+      }
+
+      if (isset($value['type']) && $value['type'] == "image" && isset($value['to_url'])) {
+	$value['to_url'] = evalFunction($value['to_url']);
+      }
+    }
+  }
+  
+  public function index() {
+    global $_rbDB, $_rbRB;
+    Halcyon::setBody("index");
+
+    $keys = $_rbDB->getCol("SELECT id FROM " . $this->specifier['bean']);
+    $this->records = $_rbRB->batch($this->specifier['bean'], $keys);
+  }
+
+  public function edit($id) {
+    global $_rbDB, $_rbRB;
+    Halcyon::setBody("edit");
+
+    $this->record = $_rbRB->load($this->specifier['bean'], $id);
+
+    $keys = $_rbDB->getCol("SELECT id FROM " . $this->specifier['bean'] . " WHERE id<> " . $id . " ORDER BY name ASC");
+    $this->tree_parents = $_rbRB->batch($this->specifier['bean'], $keys);
+  }
+
+  public function save($id) {
+    global $_rbDB, $_rbRB;
+
+    $record = $_rbRB->load($this->specifier['bean'], $id);
+
+    header("Content-Type: text/plain");
+    
+    foreach ($_POST as $key => $value) {
+      if (substr($key, 0, 5) == "form_") {
+	$key = substr($key, 5);
+
+	$record->$key = $value;
+      }
+    }
+
+    $_rbRB->store($record);
+  }
+}
