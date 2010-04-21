@@ -71,15 +71,25 @@ class Halcyon {
   }
 
 
-  public static function requireGroup($group) {
-    if (isset($_SESSION["user"]) &&
-	$_SESSION["user"]->group == $group) {
-
-      return true;
+  public static function requireSession() {
+    if (!isset($_SESSION["user"])) {
+      header("Location: /session/login/");
+      exit;
     }
 
-    header("Location: /session/login/");
-    exit;
+    return true;
+  }
+
+  
+  public static function requireGroup($group) {
+    Halcyon::requireSession();
+    
+    if ($_SESSION["user"]->group != $group) {
+      header("Location: /session/login/");
+      exit;
+    }
+
+    return true;
   }
 
   
