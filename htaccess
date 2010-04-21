@@ -1,8 +1,12 @@
 RewriteEngine On
 
+# Redirect anything that isn't a local file to index.php - the wrapper for
+# Halcyon framework
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^(.*)$ index.php [QSA,L]
 
-RewriteCond %{REQUEST_URI} ^/(app|views)
+# If we pass over the previous statement, we're targetting a local file, make
+# sure that we're not serving anything directly from the important
+# directories...
+RewriteCond %{REQUEST_URI} ^/(app|views|lib)
 RewriteRule .* / [R]
-
