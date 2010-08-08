@@ -1,6 +1,4 @@
 <?php
-error_reporting(E_ALL);
-
 class Halcyon {
   const DEBUG = false;
 
@@ -100,10 +98,8 @@ class Halcyon {
     // Clean up variables - URL
     $url = $_SERVER["REDIRECT_URL"];
 
-    if (substr($url, -1) == "/") {
-      $url = substr($url, 0, -1);
-    }
-
+    $url = rtrim($url, '/');
+    
     $scriptcount = count(explode("/", $_SERVER["SCRIPT_NAME"]));
     
     $explodedurl = explode("/", $url);
@@ -150,11 +146,11 @@ class Halcyon {
 	$this->_templateBody = ucfirst($this->_calleeMethod);
 	
 	$templatefilename = $this->_templateDirectory . "/" .
-	  $this->_controllerFilename . $this->_templateBody . ".php";
+	  $this->_controllerFilename . $this->_templateBody . ".tpl";
 
       } else {
 	$templatefilename = $this->_templateDirectory . "/" .
-	  $this->_templateBody . ".php";
+	  $this->_templateBody . ".tpl";
       }
 
       if ($templatefilename !== null) {
@@ -165,7 +161,7 @@ class Halcyon {
 	  $values = (array) $this->_handler;
 	  $values["___body___"] = $body;
 
-	  $layout = ___captureFileOutput($values, $this->_templateDirectory . "/" . $this->_templateLayout . ".php");
+	  $layout = ___captureFileOutput($values, $this->_templateDirectory . "/" . $this->_templateLayout . ".tpl");
 
 	  echo $layout;
 	  
