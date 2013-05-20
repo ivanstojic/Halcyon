@@ -10,7 +10,8 @@ class Halcyon {
   //
   // Really.
   //
-  
+
+  const RESPONSE_NONE = 0;
   const RESPONSE_JSON = 1;
   const RESPONSE_TEMPLATED = 2;
 
@@ -40,6 +41,9 @@ class Halcyon {
     return self::$_halcyonInstance;
   }
 
+  public static function noResponse() {
+    self::getInstance()->_responseType = Halcyon::RESPONSE_NONE;
+  }
 
   public static function jsonResponse() {
     self::getInstance()->_responseType = Halcyon::RESPONSE_JSON;
@@ -96,7 +100,7 @@ class Halcyon {
     $this->_query = $_SERVER["QUERY_STRING"];
 
     // Clean up variables - URL
-    $url = $_SERVER["REDIRECT_URL"];
+    $url = isset($_SERVER["REDIRECT_URL"]) ? $_SERVER["REDIRECT_URL"] : $_SERVER["REQUEST_URI"];
 
     $url = rtrim($url, '/');
     
@@ -132,7 +136,10 @@ class Halcyon {
 
   // Decorate the output of the controller as per controller's request...
   private function decorateOutput() {
-    if ($this->_responseType == Halcyon::RESPONSE_JSON) {
+    if ($this->_responseType == Halcyon::RESPONSE_NONE) {
+      // nothing, just nothing...
+      
+    } elseif ($this->_responseType == Halcyon::RESPONSE_JSON) {
       header("Content-Type: application/json");
       echo json_encode($this->_controllerReturnValue);
       
@@ -330,6 +337,19 @@ class HalcyonClassMunger {
 
   private static function wrapAndEval($classname, $filename) {
     $code = file_get_contents($filename);
+
+    if (substr($code, 0, 5) == '<?php') {
+        $code = substr($code, 5);
+
+    } else {
+        if (substr($code, 0, 2) == '<?') {
+            $code = substr($code, 2);
+        }
+    }
+
+    if (substr($code, -2) == '?>') {
+        $code = substr($code, 0, strlen($code)-2);
+    }
 
     $template = "class $classname {" . $code . "}";
 
